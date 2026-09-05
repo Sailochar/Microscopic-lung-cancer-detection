@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="PrivCanFed federated learning lung cancer screening dashboard">
+  <title>PrivCanFed | Clinical dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="effects.css">
+  <link rel="stylesheet" href="immersive.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="PrivCanFed home">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span>PrivCanFed</span>
+      </a>
+      <p class="eyebrow sidebar-label">Workspace</p>
+      <nav class="nav-list">
+        <a class="nav-item active" href="#overview"><span class="nav-icon" aria-hidden="true">⌂</span>Overview</a>
+        <a class="nav-item" href="#screening"><span class="nav-icon" aria-hidden="true">＋</span>New screening</a>
+        <a class="nav-item" href="#reports"><span class="nav-icon" aria-hidden="true">▤</span>Reports</a>
+        <a class="nav-item" href="#models"><span class="nav-icon" aria-hidden="true">◌</span>Model health</a>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="privacy-note"><span class="status-dot"></span><div><strong>Private workspace</strong><small>Images stay on this device</small></div></div>
+        <button class="text-button" id="logoutButton" type="button">Sign out <span aria-hidden="true">↗</span></button>
+      </div>
+    </aside>
+
+    <main class="main-content" id="top">
+      <header class="topbar">
+        <div class="mobile-brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>PrivCanFed</div>
+        <div class="topbar-actions"><span class="system-state"><span class="status-dot"></span>System ready</span><button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to light mode" aria-pressed="false"><span class="theme-icon" aria-hidden="true">☼</span><span class="theme-label">Light</span></button><button class="avatar" id="profileButton" aria-label="Open profile menu" type="button">DR</button></div>
+      </header>
+
+      <div class="page-wrap">
+        <div class="overview-view" id="overviewView">
+        <section class="welcome-row" id="overview">
+          <div><p class="eyebrow">Saturday, 05 September 2026 <span class="live-pill">Live workspace</span></p><h1>Good morning, <span id="userName">Dr. Rao</span>.</h1><p class="lede">Review your latest lung tissue screenings and model performance.</p></div>
+          <div class="model-orbit" aria-label="Federated model network visualization"><div class="orbit-core"><span>FL</span></div><span class="orbit-node node-a">H1</span><span class="orbit-node node-b">H2</span><span class="orbit-node node-c">H3</span><span class="orbit-ring ring-one"></span><span class="orbit-ring ring-two"></span></div>
+          <a class="primary-button" href="#screening"><span aria-hidden="true">＋</span> New screening</a>
+        </section>
+
+        <section class="metric-grid" aria-label="Workspace summary">
+          <article class="metric-card accent-teal"><div class="metric-icon" aria-hidden="true">⌁</div><div><p>Screenings reviewed</p><strong>128</strong><span class="metric-change positive">+18.4% <em>this month</em></span></div></article>
+          <article class="metric-card accent-amber"><div class="metric-icon" aria-hidden="true">◉</div><div><p>FedProx accuracy</p><strong>96.8%</strong><span class="metric-change positive">+2.1% <em>vs FedAvg</em></span></div></article>
+          <article class="metric-card accent-blue"><div class="metric-icon" aria-hidden="true">◒</div><div><p>Avg. review time</p><strong>42 sec</strong><span class="metric-change neutral">−8 sec <em>this month</em></span></div></article>
+          <article class="metric-card accent-lilac"><div class="metric-icon" aria-hidden="true">♧</div><div><p>Connected hospitals</p><strong>03</strong><span class="metric-change neutral">All systems online</span></div></article>
+        </section>
+
+        </div>
+        <section class="screening-view" id="screeningView" hidden>
+          <div class="view-heading"><div><p class="eyebrow">Image review workspace</p><h1>New screening</h1><p class="lede">Upload a tissue image and run the selected local model.</p></div><span class="live-pill">Private review</span></div>
+        <section class="content-grid">
+          <article class="panel screening-panel" id="screening">
+            <div class="panel-heading"><div><p class="eyebrow">Image review</p><h2>Start a screening</h2></div><span class="secure-label"><span aria-hidden="true">▣</span> Secure upload</span></div>
+            <div class="upload-zone" id="uploadZone" tabindex="0" role="button" aria-label="Upload a lung tissue image">
+              <input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+              <div class="upload-preview" id="uploadPreview"><span class="upload-glyph" aria-hidden="true">＋</span></div>
+              <div class="upload-copy"><strong id="uploadTitle">Drop a tissue image here</strong><span id="uploadHint">or browse from your device · JPG, PNG, WEBP up to 10 MB</span></div>
+              <button class="secondary-button" id="browseButton" type="button">Browse files</button>
+            </div>
+            <div class="screening-controls"><label>Model <select id="modelSelect"><option>FedProx · global best</option><option>FedAvg · baseline</option><option>Hospital 1 · local</option></select></label><button class="primary-button analyze-button" id="analyzeButton" type="button"><span aria-hidden="true">⌁</span> Analyze image</button></div>
+            <p class="helper-text" id="analysisMessage">Local inference uses the selected checkpoint and the same validation preprocessing as training.</p>
+          </article>
+
+        </section>
+        </section>
+        <section class="reports-view" id="reportsView" hidden>
+          <div class="view-heading"><div><p class="eyebrow">Screening history</p><h1>Reports</h1><p class="lede">Review the latest classification and confidence breakdown.</p></div><span class="live-pill">Latest case</span></div>
+        <section class="content-grid">
+          <article class="panel result-panel" id="reports">
+            <div class="panel-heading"><div><p class="eyebrow">Latest report</p><h2>Screening result</h2></div><span class="result-status" id="resultStatus">Demo result</span></div>
+            <div class="result-main"><div><span class="result-label">Most likely class</span><strong id="resultClass">Awaiting image</strong><p id="resultDescription">Upload a tissue image and run local inference.</p></div><div class="confidence-ring"><strong id="confidenceValue">—</strong><span>confidence</span></div></div>
+            <div class="probability-list"><div class="probability-row"><span>lung_aca</span><div class="progress"><i id="probAca" class="amber" style="width:0%"></i></div><strong id="probAcaValue">—</strong></div><div class="probability-row"><span>lung_n</span><div class="progress"><i id="probN" style="width:0%"></i></div><strong id="probNValue">—</strong></div><div class="probability-row"><span>lung_scc</span><div class="progress"><i id="probScc" class="red" style="width:0%"></i></div><strong id="probSccValue">—</strong></div></div>
+            <div class="result-footer"><span>Case ID <strong id="caseId">PCF-240905-018</strong></span><button class="link-button" id="downloadButton" type="button">Download report <span aria-hidden="true">↓</span></button></div>
+          </article>
+        </section>
+        </section>
+        <section class="model-health-view" id="models" hidden>
+          <div class="view-heading"><div><p class="eyebrow">Separate model workspace</p><h1>Model health</h1><p class="lede">Inspect federation performance and hospital synchronization.</p></div><span class="live-pill">Live telemetry</span></div>
+        <section class="lower-grid">
+          <article class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">Model performance</p><h2>Accuracy / Precision / Recall / Macro-F1</h2></div><span class="chart-live-status" id="chartLiveStatus">Loading live metrics</span></div><div class="chart-wrap chart-3d-wrap"><div class="chart-3d" id="metricsChart" role="img" aria-label="Interactive 3D model comparison chart"><div class="chart-loading" id="chartLoading">Evaluating held-out test set…</div></div><div class="chart-tooltip" id="chartTooltip" role="status" aria-live="polite"></div></div><div class="chart-legend"><span><i class="legend-dot accuracy"></i>Accuracy</span><span><i class="legend-dot precision"></i>Precision</span><span><i class="legend-dot recall"></i>Recall</span><span><i class="legend-dot macro-f1"></i>Macro-F1</span></div></article>
+          <article class="panel activity-panel"><div class="panel-heading"><div><p class="eyebrow">Network pulse</p><h2>Hospital activity</h2></div><span class="online-count"><span class="status-dot"></span>3 online</span></div><div class="hospital-list"><div class="hospital-row"><span class="hospital-avatar">H1</span><div><strong>Hospital 1</strong><small>Balanced cohort</small></div><span class="hospital-state">Synced</span></div><div class="hospital-row"><span class="hospital-avatar amber-bg">H2</span><div><strong>Hospital 2</strong><small>lung_n dominant</small></div><span class="hospital-state">Synced</span></div><div class="hospital-row"><span class="hospital-avatar blue-bg">H3</span><div><strong>Hospital 3</strong><small>lung_n starved</small></div><span class="hospital-state">Synced</span></div></div><div class="privacy-callout"><span aria-hidden="true">◇</span><p><strong>Privacy by design</strong><br>Only model updates leave each hospital. Patient images remain local.</p></div></article>
+        </section>
+        </section>
+        <footer class="page-footer"><span>PrivCanFed · Review workspace</span><span>For research use only · Not a standalone diagnosis</span></footer>
+      </div>
+    </main>
+  </div>
+
+  <div class="auth-backdrop" id="authBackdrop"><section class="auth-card" aria-labelledby="authTitle"><div class="auth-brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span><span>PrivCanFed</span></div><div class="auth-heading"><p class="eyebrow">Federated lung screening</p><h2 id="authTitle">A clearer view of every case.</h2><p>Securely review tissue images with the privacy-preserving research model.</p></div><div class="auth-tabs"><button class="auth-tab active" data-mode="signin" type="button">Sign in</button><button class="auth-tab" data-mode="signup" type="button">Create account</button></div><form id="authForm"><label id="nameField" class="hidden">Full name<input id="nameInput" type="text" placeholder="Dr. Priya Rao"></label><label>Work email<input id="emailInput" type="email" placeholder="you@hospital.org" required></label><label>Password<input id="passwordInput" type="password" placeholder="••••••••" required></label><button class="primary-button auth-submit" type="submit"><span id="authSubmitText">Sign in to workspace</span><span aria-hidden="true">→</span></button></form><button class="demo-button" id="demoButton" type="button"><span aria-hidden="true">◉</span> Continue with demo user</button><p class="auth-note">By continuing, you agree to use this research tool for clinical decision support only.</p></section></div>
+  <div class="report-prompt" id="reportPrompt" hidden><section class="report-prompt-card" role="dialog" aria-modal="true" aria-labelledby="reportPromptTitle"><div class="prompt-mark" aria-hidden="true">✓</div><p class="eyebrow">Analysis complete</p><h2 id="reportPromptTitle">Your report is ready.</h2><p id="reportPromptText">The selected model has finished reviewing this image.</p><div class="prompt-actions"><button class="secondary-button" id="stayScreeningButton" type="button">Stay here</button><button class="primary-button" id="viewReportButton" type="button">View report <span aria-hidden="true">→</span></button></div></section></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

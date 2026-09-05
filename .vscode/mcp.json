@@ -1,0 +1,19 @@
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "twenty_first_api_key",
+      "description": "21st.dev API key for Magic MCP",
+      "password": true
+    }
+  ],
+  "servers": {
+    "21st": {
+      "type": "http",
+      "url": "https://21st.dev/api/mcp",
+      "headers": {
+        "x-api-key": "${input:twenty_first_api_key}"
+      }
+    }
+  }
+}
