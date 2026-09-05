@@ -2,6 +2,12 @@
 
 Run from the project root:
     python src/dashboard_server.py
+
+Deployment:
+    Render Web Service
+
+Frontend:
+    Vercel
 """
 
 import base64
@@ -15,17 +21,27 @@ from urllib.parse import urlparse
 import numpy as np
 import torch
 from PIL import Image
-from sklearn.metrics import precision_recall_fscore_support, accuracy_score
 
 
 # ============================================================
 # PROJECT PATHS
 # ============================================================
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC_DIR = os.path.join(ROOT_DIR, "src")
+ROOT_DIR = os.path.dirname(
+    os.path.dirname(
+        os.path.abspath(__file__)
+    )
+)
 
-sys.path.insert(0, SRC_DIR)
+SRC_DIR = os.path.join(
+    ROOT_DIR,
+    "src"
+)
+
+sys.path.insert(
+    0,
+    SRC_DIR
+)
 
 
 # ============================================================
@@ -34,34 +50,95 @@ sys.path.insert(0, SRC_DIR)
 
 from model import get_model
 from preprocessing import VAL_TRANSFORM
-from preprocessing import get_test_loader
 
 
 # ============================================================
 # SERVER CONFIGURATION
 # ============================================================
 
+# IMPORTANT:
+# Render requires the server to listen on 0.0.0.0.
 HOST = "0.0.0.0"
 
-# Render provides the PORT environment variable.
-# For local development, 4173 is used.
-PORT = int(os.environ.get("PORT", "4173"))
+# Render automatically supplies PORT.
+# Local development defaults to 4173.
+PORT = int(
+    os.environ.get(
+        "PORT",
+        "4173"
+    )
+)
 
 
 # ============================================================
 # CORS CONFIGURATION
 # ============================================================
 
-# Your deployed Vercel frontend.
-VERCEL_ORIGIN = "https://microscopic-lung-cancer-detection.vercel.app"
+# Main production Vercel URL.
+VERCEL_PRODUCTION_ORIGIN = (
+    "https://microscopic-lung-cancer-detection.vercel.app"
+)
 
-# Local origins are included so the dashboard still works
-# when you run it directly on your computer.
+
+# Exact local development origins.
 ALLOWED_ORIGINS = {
-    VERCEL_ORIGIN,
+    VERCEL_PRODUCTION_ORIGIN,
+
     "http://localhost:4173",
     "http://127.0.0.1:4173",
+
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 }
+
+
+def is_allowed_origin(origin):
+    """
+    Check whether a browser Origin is allowed.
+
+    Supports:
+      - Production Vercel URL
+      - Vercel deployment/preview URLs for this project
+      - Local development
+    """
+
+    if not origin:
+        return False
+
+    # Exact known origins.
+    if origin in ALLOWED_ORIGINS:
+        return True
+
+    try:
+        parsed = urlparse(origin)
+
+        scheme = parsed.scheme
+        hostname = parsed.hostname
+
+        if not hostname:
+            return False
+
+        # Allow HTTPS Vercel deployment URLs belonging
+        # to this project.
+        #
+        # Example:
+        # https://microscopic-lung-cancer-detection-1etdyxrf6.vercel.app
+        #
+        if (
+            scheme == "https"
+            and hostname.startswith(
+                "microscopic-lung-cancer-detection"
+            )
+            and hostname.endswith(
+                ".vercel.app"
+            )
+        ):
+            return True
+
+    except Exception:
+        return False
+
+    return False
 
 
 # ============================================================
@@ -73,6 +150,7 @@ CLASS_NAMES = [
     "lung_n",
     "lung_scc",
 ]
+
 
 CHECKPOINTS = {
     "fedprox": os.path.join(
@@ -100,7 +178,9 @@ CHECKPOINTS = {
 # ============================================================
 
 DEVICE = torch.device(
-    "cuda" if torch.cuda.is_available() else "cpu"
+    "cuda"
+    if torch.cuda.is_available()
+    else "cpu"
 )
 
 
@@ -171,33 +251,46 @@ REPORT_METRICS = [
 
 def load_model(model_key):
     """
-    Load the requested PyTorch checkpoint.
+    Load a PyTorch checkpoint.
 
-    Models are cached after the first load so repeated
-    predictions do not reload the checkpoint from disk.
+    Models are cached after the first load so subsequent
+    requests do not reload the checkpoint.
     """
 
+    # Return cached model if already loaded.
     if model_key in MODELS:
         return MODELS[model_key]
 
-    # Only allow supported model names.
+    # Security / validation:
+    # Only allow models defined in CHECKPOINTS.
     if model_key not in CHECKPOINTS:
         model_key = "fedprox"
 
-    checkpoint_path = CHECKPOINTS[model_key]
+    checkpoint_path = CHECKPOINTS[
+        model_key
+    ]
 
-    if not os.path.exists(checkpoint_path):
+    if not os.path.exists(
+        checkpoint_path
+    ):
         raise FileNotFoundError(
-            f"Checkpoint not found: {checkpoint_path}"
+            f"Checkpoint not found: "
+            f"{checkpoint_path}"
         )
 
     print(
-        f"Loading model '{model_key}' "
-        f"from: {checkpoint_path}"
+        f"[MODEL] Loading {model_key}"
+    )
+
+    print(
+        f"[MODEL] Checkpoint: "
+        f"{checkpoint_path}"
     )
 
     model = get_model(
-        num_classes=len(CLASS_NAMES),
+        num_classes=len(
+            CLASS_NAMES
+        ),
         freeze_backbone=False,
         pretrained=False,
     )
@@ -207,13 +300,20 @@ def load_model(model_key):
         map_location=DEVICE,
     )
 
-    # Support checkpoints stored as:
-    # {"model_state_dict": ...}
+    # Support checkpoints saved as:
+    #
+    # {
+    #     "model_state_dict": ...
+    # }
+    #
+    # as well as raw state dictionaries.
     if (
         isinstance(state, dict)
         and "model_state_dict" in state
     ):
-        state = state["model_state_dict"]
+        state = state[
+            "model_state_dict"
+        ]
 
     model.load_state_dict(
         state,
@@ -221,12 +321,15 @@ def load_model(model_key):
     )
 
     model.to(DEVICE)
+
     model.eval()
 
-    MODELS[model_key] = model
+    MODELS[
+        model_key
+    ] = model
 
     print(
-        f"Model '{model_key}' loaded successfully."
+        f"[MODEL] {model_key} loaded successfully"
     )
 
     return model
@@ -242,30 +345,43 @@ def decode_image(data_url):
     """
 
     if (
-        not isinstance(data_url, str)
-        or "," not in data_url
+        not isinstance(
+            data_url,
+            str
+        )
+        or ","
+        not in data_url
     ):
         raise ValueError(
             "Expected a base64 data URL"
         )
 
-    _, encoded = data_url.split(",", 1)
+    _, encoded = data_url.split(
+        ",",
+        1
+    )
 
     try:
         image_bytes = base64.b64decode(
             encoded,
             validate=True,
         )
+
     except Exception as error:
+
         raise ValueError(
             "Invalid base64 image data"
         ) from error
 
     try:
         image = Image.open(
-            BytesIO(image_bytes)
+            BytesIO(
+                image_bytes
+            )
         ).convert("RGB")
+
     except Exception as error:
+
         raise ValueError(
             "Unable to decode the uploaded image"
         ) from error
@@ -284,10 +400,13 @@ def validate_microscopy_image(image):
     """
 
     sample = np.asarray(
-        image.resize((128, 128)),
+        image.resize(
+            (128, 128)
+        ),
         dtype=np.float32,
     ) / 255.0
 
+    # Percentage of very dark pixels.
     dark_ratio = float(
         np.all(
             sample < 0.12,
@@ -295,6 +414,7 @@ def validate_microscopy_image(image):
         ).mean()
     )
 
+    # Percentage of very bright pixels.
     bright_ratio = float(
         np.all(
             sample > 0.88,
@@ -302,6 +422,7 @@ def validate_microscopy_image(image):
         ).mean()
     )
 
+    # Estimate color variation.
     color_spread = (
         sample.max(axis=2)
         - sample.min(axis=2)
@@ -313,34 +434,44 @@ def validate_microscopy_image(image):
         ).mean()
     )
 
-    luminance = sample.mean(axis=2)
+    # Estimate image luminance.
+    luminance = sample.mean(
+        axis=2
+    )
 
+    # Estimate contrast.
     contrast = float(
         luminance.std()
     )
 
+    # Reject mostly black images.
     if (
         dark_ratio > 0.42
         and colored_ratio < 0.28
     ):
         raise ValueError(
-            "Unsupported image: upload a stained microscopic lung-tissue image."
+            "Unsupported image: upload a stained "
+            "microscopic lung-tissue image."
         )
 
+    # Reject mostly white / blank images.
     if (
         bright_ratio > 0.72
         and contrast < 0.10
     ):
         raise ValueError(
-            "Unsupported image: upload a stained microscopic lung-tissue image."
+            "Unsupported image: upload a stained "
+            "microscopic lung-tissue image."
         )
 
+    # Reject images with extremely low information.
     if (
         colored_ratio < 0.08
         or contrast < 0.035
     ):
         raise ValueError(
-            "Unsupported image: upload a stained microscopic lung-tissue image."
+            "Unsupported image: upload a stained "
+            "microscopic lung-tissue image."
         )
 
 
@@ -348,44 +479,70 @@ def validate_microscopy_image(image):
 # PREDICTION
 # ============================================================
 
-def predict(data_url, model_key):
+def predict(
+    data_url,
+    model_key
+):
     """
-    Run inference using the selected model.
+    Run inference using the requested model.
     """
 
-    image = decode_image(data_url)
+    # Decode image.
+    image = decode_image(
+        data_url
+    )
 
-    validate_microscopy_image(image)
+    # Validate image.
+    validate_microscopy_image(
+        image
+    )
 
+    # Apply validation preprocessing.
     tensor = (
         VAL_TRANSFORM(image)
         .unsqueeze(0)
         .to(DEVICE)
     )
 
-    model = load_model(model_key)
+    # Load requested checkpoint.
+    model = load_model(
+        model_key
+    )
 
+    # Inference.
     with torch.no_grad():
+
+        logits = model(
+            tensor
+        )
+
         probabilities = torch.softmax(
-            model(tensor),
+            logits,
             dim=1,
         )[0].cpu().tolist()
 
+    # Rank classes.
     ranked = sorted(
-        zip(CLASS_NAMES, probabilities),
+        zip(
+            CLASS_NAMES,
+            probabilities,
+        ),
         key=lambda item: item[1],
         reverse=True,
     )
 
-    return {
-        "prediction": ranked[0][0],
+    prediction = ranked[0][0]
 
-        "confidence": ranked[0][1],
+    confidence = ranked[0][1]
+
+    return {
+        "prediction": prediction,
+
+        "confidence": confidence,
 
         "probabilities": {
             name: value
-            for name, value
-            in zip(
+            for name, value in zip(
                 CLASS_NAMES,
                 probabilities,
             )
@@ -413,8 +570,12 @@ def get_metrics():
 
     METRICS_CACHE = {
         "metrics": REPORT_METRICS,
-        "device": "reported held-out results",
-        "source": "pasted evaluation report",
+
+        "device":
+            "reported held-out results",
+
+        "source":
+            "pasted evaluation report",
     }
 
     return METRICS_CACHE
@@ -424,35 +585,39 @@ def get_metrics():
 # HTTP HANDLER
 # ============================================================
 
-class DashboardHandler(SimpleHTTPRequestHandler):
+class DashboardHandler(
+    SimpleHTTPRequestHandler
+):
 
     def __init__(
         self,
         *args,
-        **kwargs,
+        **kwargs
     ):
+
         super().__init__(
             *args,
             directory=ROOT_DIR,
-            **kwargs,
+            **kwargs
         )
 
 
-    # --------------------------------------------------------
-    # CORS
-    # --------------------------------------------------------
+    # ========================================================
+    # CORS HEADERS
+    # ========================================================
 
     def add_cors_headers(self):
         """
-        Add CORS headers required for the Vercel frontend
-        to communicate with the Render backend.
+        Add CORS headers for allowed Vercel/local origins.
         """
 
         origin = self.headers.get(
             "Origin"
         )
 
-        if origin in ALLOWED_ORIGINS:
+        if is_allowed_origin(
+            origin
+        ):
 
             self.send_header(
                 "Access-Control-Allow-Origin",
@@ -480,46 +645,57 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             )
 
 
-    # --------------------------------------------------------
-    # HTTP RESPONSE HEADERS
-    # --------------------------------------------------------
+    # ========================================================
+    # COMMON RESPONSE HEADERS
+    # ========================================================
 
     def end_headers(self):
 
+        # Do not cache API responses.
         self.send_header(
             "Cache-Control",
             "no-store",
         )
 
+        # Add CORS.
         self.add_cors_headers()
 
+        # Finish HTTP headers.
         super().end_headers()
 
 
-    # --------------------------------------------------------
-    # OPTIONS / CORS PREFLIGHT
-    # --------------------------------------------------------
+    # ========================================================
+    # CORS PREFLIGHT
+    # ========================================================
 
     def do_OPTIONS(self):
         """
         Handle browser CORS preflight requests.
 
-        This is required because the frontend sends JSON
-        using Content-Type: application/json.
+        The frontend sends:
+            Content-Type: application/json
+
+        Therefore browsers can send an OPTIONS request
+        before the actual POST request.
         """
 
         path = urlparse(
             self.path
         ).path
 
+        # Only allow preflight for API endpoints.
         if path not in (
             "/api/predict",
             "/api/metrics",
         ):
-            self.send_error(404)
+            self.send_error(
+                404
+            )
             return
 
-        self.send_response(204)
+        self.send_response(
+            204
+        )
 
         self.send_header(
             "Content-Length",
@@ -529,9 +705,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # POST /api/predict
-    # --------------------------------------------------------
+    # ========================================================
 
     def do_POST(self):
 
@@ -539,56 +715,65 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.path
         ).path
 
+        # Only prediction endpoint accepts POST.
         if path != "/api/predict":
-            self.send_error(404)
+
+            self.send_error(
+                404
+            )
+
             return
 
         try:
 
+            # Get request size.
             content_length = int(
                 self.headers.get(
                     "Content-Length",
-                    "0",
+                    "0"
                 )
             )
 
-            # Prevent obviously invalid requests.
             if content_length <= 0:
                 raise ValueError(
                     "Request body is empty"
                 )
 
-            # 15 MB request limit.
-            max_request_size = 15 * 1024 * 1024
+            # Limit request size to 15 MB.
+            # This prevents accidental huge uploads.
+            max_request_size = (
+                15 * 1024 * 1024
+            )
 
-            if content_length > max_request_size:
+            if (
+                content_length
+                > max_request_size
+            ):
                 raise ValueError(
                     "Image request is too large"
                 )
 
+            # Read request body.
             raw_body = self.rfile.read(
                 content_length
             )
 
+            # Parse JSON.
             payload = json.loads(
                 raw_body
             )
 
             if not isinstance(
                 payload,
-                dict,
+                dict
             ):
                 raise ValueError(
                     "Invalid request payload"
                 )
 
+            # Get image.
             image_data = payload.get(
                 "image"
-            )
-
-            model_key = payload.get(
-                "model",
-                "fedprox",
             )
 
             if not image_data:
@@ -596,44 +781,60 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     "No image was provided"
                 )
 
-            # Supported models only.
+            # Get selected model.
+            model_key = payload.get(
+                "model",
+                "fedprox"
+            )
+
+            # Supported models.
             allowed_models = set(
                 CHECKPOINTS.keys()
             )
 
-            if model_key not in allowed_models:
+            if (
+                model_key
+                not in allowed_models
+            ):
                 model_key = "fedprox"
 
+            # Run prediction.
             result = predict(
                 image_data,
-                model_key,
+                model_key
             )
 
+            # Send result.
             self.send_json(
                 200,
-                result,
+                result
             )
 
         except json.JSONDecodeError:
+
             self.send_json(
                 400,
                 {
                     "error":
                         "Invalid JSON request"
-                },
+                }
             )
 
         except ValueError as error:
+
             self.send_json(
                 400,
                 {
-                    "error": str(error)
-                },
+                    "error":
+                        str(error)
+                }
             )
 
         except FileNotFoundError as error:
+
             print(
-                f"Checkpoint error: {error}"
+                "[ERROR] Checkpoint:",
+                error
             )
 
             self.send_json(
@@ -641,14 +842,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 {
                     "error":
                         "Model checkpoint is unavailable"
-                },
+                }
             )
 
         except Exception as error:
 
             print(
-                "Prediction error:",
-                repr(error),
+                "[ERROR] Prediction:",
+                repr(error)
             )
 
             self.send_json(
@@ -656,13 +857,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 {
                     "error":
                         "Prediction failed on the backend"
-                },
+                }
             )
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # GET /api/metrics
-    # --------------------------------------------------------
+    # ========================================================
 
     def do_GET(self):
 
@@ -670,20 +871,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.path
         ).path
 
+        # API metrics endpoint.
         if path == "/api/metrics":
 
             try:
 
+                result = get_metrics()
+
                 self.send_json(
                     200,
-                    get_metrics(),
+                    result
                 )
 
             except Exception as error:
 
                 print(
-                    "Metrics error:",
-                    repr(error),
+                    "[ERROR] Metrics:",
+                    repr(error)
                 )
 
                 self.send_json(
@@ -691,29 +895,31 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     {
                         "error":
                             "Unable to load metrics"
-                    },
+                    }
                 )
 
             return
 
-        # Everything else is served as a static file.
+        # Everything else is served normally.
         super().do_GET()
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # JSON RESPONSE
-    # --------------------------------------------------------
+    # ========================================================
 
     def send_json(
         self,
         status,
-        payload,
+        payload
     ):
 
         body = json.dumps(
             payload,
-            ensure_ascii=False,
-        ).encode("utf-8")
+            ensure_ascii=False
+        ).encode(
+            "utf-8"
+        )
 
         self.send_response(
             status
@@ -721,12 +927,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         self.send_header(
             "Content-Type",
-            "application/json; charset=utf-8",
+            "application/json; charset=utf-8"
         )
 
         self.send_header(
             "Content-Length",
-            str(len(body)),
+            str(len(body))
         )
 
         self.end_headers()
@@ -737,19 +943,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
 
 # ============================================================
-# SERVER START
+# START SERVER
 # ============================================================
 
 if __name__ == "__main__":
 
+    print()
     print(
         "=================================================="
     )
-
     print(
         "PrivCanFed Dashboard Backend"
     )
-
     print(
         "=================================================="
     )
@@ -771,7 +976,12 @@ if __name__ == "__main__":
     )
 
     print(
-        f"Vercel frontend: {VERCEL_ORIGIN}"
+        f"Vercel production origin: "
+        f"{VERCEL_PRODUCTION_ORIGIN}"
+    )
+
+    print(
+        "CORS: enabled"
     )
 
     print(
@@ -779,15 +989,20 @@ if __name__ == "__main__":
     )
 
     server = ThreadingHTTPServer(
-        (HOST, PORT),
-        DashboardHandler,
+        (
+            HOST,
+            PORT
+        ),
+        DashboardHandler
     )
 
     print(
-        f"Server running on port {PORT}"
+        f"Server listening on "
+        f"0.0.0.0:{PORT}"
     )
 
     try:
+
         server.serve_forever()
 
     except KeyboardInterrupt:
