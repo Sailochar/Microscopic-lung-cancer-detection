@@ -65,7 +65,7 @@
               <div class="upload-copy"><strong id="uploadTitle">Drop a tissue image here</strong><span id="uploadHint">or browse from your device · JPG, PNG, WEBP up to 10 MB</span></div>
               <button class="secondary-button" id="browseButton" type="button">Browse files</button>
             </div>
-            <div class="screening-controls"><label>Model <select id="modelSelect"><option>FedProx · global best</option><option>FedAvg · baseline</option><option>Hospital 1 · local</option><option>Hospital 2 · local</option><option>Hospital 3 · local</option></select></label><button class="primary-button analyze-button" id="analyzeButton" type="button"><span aria-hidden="true">⌁</span> Analyze image</button></div>
+            <div class="screening-controls"><label>Model <select id="modelSelect"><option>FedProx · external normal-weighted</option><option>FedAvg · baseline</option><option>Hospital 1 · local</option><option>Hospital 2 · local</option><option>Hospital 3 · local</option></select></label><button class="primary-button analyze-button" id="analyzeButton" type="button"><span aria-hidden="true">⌁</span> Analyze image</button></div>
             <p class="helper-text" id="analysisMessage">Local inference uses the selected checkpoint and the same validation preprocessing as training.</p>
           </article>
 
@@ -77,7 +77,7 @@
           <article class="panel result-panel" id="reports">
             <div class="panel-heading"><div><p class="eyebrow">Latest report</p><h2>Screening result</h2></div><span class="result-status" id="resultStatus">Demo result</span></div>
             <div class="result-main"><div><span class="result-label">Most likely class</span><strong id="resultClass">Awaiting image</strong><p id="resultDescription">Upload a tissue image and run local inference.</p></div><div class="confidence-ring"><strong id="confidenceValue">—</strong><span>confidence</span></div></div>
-            <div class="probability-list"><div class="probability-row"><span>lung_aca</span><div class="progress"><i id="probAca" class="amber" style="width:0%"></i></div><strong id="probAcaValue">—</strong></div><div class="probability-row"><span>lung_n</span><div class="progress"><i id="probN" style="width:0%"></i></div><strong id="probNValue">—</strong></div><div class="probability-row"><span>lung_scc</span><div class="progress"><i id="probScc" class="red" style="width:0%"></i></div><strong id="probSccValue">—</strong></div></div>
+            <div class="probability-list"><div class="probability-row"><span>lung_aca</span><div class="progress"><i id="probAca" class="amber" style="width:0%"></i></div><strong id="probAcaValue">—</strong></div><div class="probability-row"><span>lung_n</span><div class="progress"><i id="probN" style="width:0%"></i></div><strong id="probNValue">—</strong></div><div class="probability-row"><span>lung_scc</span><div class="progress"><i id="probScc" class="red" style="width:0%"></i></div><strong id="probSccValue">—</strong></div></div><div class="explanation-panel"><div><p class="eyebrow">Explainable AI</p><strong>Model attention map</strong><small>Red regions show where the selected class influenced the prediction.</small></div><img id="explanationImage" alt="Grad-CAM model attention map" hidden></div>
             <div class="result-footer"><span>Case ID <strong id="caseId">PCF-240905-018</strong></span><button class="link-button" id="downloadButton" type="button">Download report <span aria-hidden="true">↓</span></button></div>
           </article>
         </section>

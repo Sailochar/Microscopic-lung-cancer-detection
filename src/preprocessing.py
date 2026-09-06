@@ -18,6 +18,8 @@ import collections
 import os
 import sys
 
+import numpy as np
+from PIL import Image
 import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
 from torchvision import datasets, transforms
@@ -35,16 +37,44 @@ HOSPITAL_PATHS = {
 TEST_PATH = os.path.join(DATA_ROOT, "test")
 
 IMAGE_SIZE = (224, 224)
+STAIN_NORMALIZATION_ENABLED = os.environ.get(
+    "PRIVCANFED_STAIN_NORMALIZATION", "0"
+).lower() in {"1", "true", "yes"}
+
+
+class PercentileStainNormalize:
+    """Normalize per-image stain intensity while preserving RGB structure.
+
+    This lightweight normalization removes scanner/exposure differences without
+    adding an OpenCV dependency. It is intentionally opt-in because existing
+    checkpoints were trained without this transform.
+    """
+
+    def __call__(self, image):
+        rgb = np.asarray(image.convert("RGB"), dtype=np.float32) / 255.0
+        low = np.percentile(rgb, 1.0, axis=(0, 1), keepdims=True)
+        high = np.percentile(rgb, 99.0, axis=(0, 1), keepdims=True)
+        rgb = (rgb - low) / np.maximum(high - low, 1e-6)
+        rgb = np.clip(rgb, 0.0, 1.0)
+        return Image.fromarray((rgb * 255.0).round().astype(np.uint8), "RGB")
+
+
+def _stain_steps():
+    return [PercentileStainNormalize()] if STAIN_NORMALIZATION_ENABLED else []
 
 # ── Transforms ────────────────────────────────────────────────────────────────
 TRAIN_TRANSFORM = transforms.Compose([
     transforms.Resize(IMAGE_SIZE),
+    *_stain_steps(),
     transforms.RandomHorizontalFlip(p=0.5),
     transforms.RandomVerticalFlip(p=0.2),
     transforms.RandomRotation(15),
-    transforms.ColorJitter(brightness=0.25, contrast=0.25,
-                           saturation=0.2, hue=0.05),
+    transforms.ColorJitter(brightness=0.35, contrast=0.35,
+                           saturation=0.35, hue=0.08),
     transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),
+    transforms.RandomApply([
+        transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 1.5))
+    ], p=0.15),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406],
                          std=[0.229, 0.224, 0.225]),
@@ -52,12 +82,58 @@ TRAIN_TRANSFORM = transforms.Compose([
 
 VAL_TRANSFORM = transforms.Compose([
     transforms.Resize(IMAGE_SIZE),
+    *_stain_steps(),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406],
                          std=[0.229, 0.224, 0.225]),
 ])
 
 TEST_TRANSFORM = VAL_TRANSFORM
+
+EXTERNAL_CLASS_NAMES = ["lung_aca", "lung_n", "lung_scc"]
+EXTERNAL_CLASS_ALIASES = {
+    "lung_aca": "lung_aca",
+    "aca": "lung_aca",
+    "aca_bd": "lung_aca",
+    "lung_n": "lung_n",
+    "normal": "lung_n",
+    "nor": "lung_n",
+    "lung_scc": "lung_scc",
+    "scc": "lung_scc",
+    "scc_bd": "lung_scc",
+}
+
+
+def load_external_dataset(path, transform):
+    """Load external folders and convert known aliases to training labels."""
+    dataset = datasets.ImageFolder(path, transform=transform)
+    try:
+        canonical = [EXTERNAL_CLASS_ALIASES[name.lower()]
+                     for name in dataset.classes]
+    except KeyError as error:
+        raise ValueError(
+            "Unsupported external class folder. Supported names are: "
+            + ", ".join(sorted(EXTERNAL_CLASS_ALIASES))
+        ) from error
+
+    if set(canonical) != set(EXTERNAL_CLASS_NAMES) or len(canonical) != 3:
+        raise ValueError(
+            "External data must contain exactly one folder for each of: "
+            + ", ".join(EXTERNAL_CLASS_NAMES)
+        )
+
+    class_to_index = {name: index for index, name in enumerate(EXTERNAL_CLASS_NAMES)}
+    remapped_targets = [class_to_index[canonical[target]]
+                        for target in dataset.targets]
+    dataset.classes = EXTERNAL_CLASS_NAMES
+    dataset.class_to_idx = class_to_index
+    dataset.targets = remapped_targets
+    dataset.samples = [
+        (filename, class_to_index[canonical[target]])
+        for filename, target in dataset.samples
+    ]
+    dataset.imgs = dataset.samples
+    return dataset
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

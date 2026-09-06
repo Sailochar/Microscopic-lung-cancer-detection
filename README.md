@@ -21,6 +21,8 @@ Major_project_1/
 │   ├── evaluate.py              # Step 4 – Checkpoint sanity-check
 │   ├── fedprox_simulation.py    # Step 5 – FedProx / FedAvg simulation
 │   └── compare_models.py        # Step 6 – Full comparison + charts
+│   ├── evaluate_external.py     # External-domain evaluation
+│   └── explain_prediction.py     # Grad-CAM explanation
 │
 ├── checkpoints/                 # Saved .pth model files (auto-created)
 ├── results/                     # Confusion matrices, ROC, PR, bar charts
@@ -45,6 +47,21 @@ Install dependencies:
 ```bash
 pip install "flwr[simulation]" scikit-learn matplotlib seaborn pandas
 ```
+
+### Stain normalization mode
+
+The pipeline now supports opt-in percentile-based stain normalization and
+stronger color/blur augmentation. Existing checkpoints were trained without
+normalization, so leave this unset when serving those checkpoints. Enable it
+for every training, evaluation, and dashboard process when creating a new
+normalization-aware checkpoint:
+
+```powershell
+$env:PRIVCANFED_STAIN_NORMALIZATION = "1"
+```
+
+The setting must be identical during training and inference. Do not enable it
+for an old checkpoint and do not disable it for a checkpoint trained with it.
 
 ---
 
@@ -95,6 +112,79 @@ If CUDA OOM → lower `--batch_size 8`.
 python src/compare_models.py
 ```
 Generates all confusion matrices, ROC, PR curves, and comparison bar chart in `results/`.
+
+### Explainability check
+
+Generate a Grad-CAM overlay for an external image. The highlighted area should
+be tissue morphology, not a border, blank background, label, or stain artifact:
+
+```bash
+python src/explain_prediction.py --image external_data/lung_aca/sample.jpg \
+	--checkpoint checkpoints/global_fedprox_model.pth \
+	--output results/sample_gradcam.png
+```
+
+If the heatmap consistently focuses on acquisition artifacts, collect more
+domain-diverse training data and retrain with stain normalization enabled.
+
+### External dataset evaluation and adaptation
+
+Arrange a different dataset using the same class folders and confirm that the
+labels have the same meaning:
+
+```
+external_data/
+├── aca_bd/    # mapped to lung_aca
+├── nor/       # mapped to lung_n
+└── scc_bd/    # mapped to lung_scc
+```
+
+Evaluate the global checkpoint first. The evaluator stops if the folder order
+does not match the training labels:
+
+```bash
+python src/evaluate_external.py --data_root external_data \
+	--checkpoint checkpoints/global_fedprox_model.pth
+```
+
+For the supplied `aca_bd`, `nor`, and `scc_bd` dataset, the tested external
+workflow is:
+
+```bash
+python src/adapt_external.py --data_root external_data \
+	--checkpoint checkpoints/global_fedprox_model.pth \
+	--save_name global_fedprox_external_normal_weighted.pth \
+	--normal_weight 2.0 --epochs 15 --lr 0.000005
+
+python src/calibrate_external.py --data_root external_data \
+	--checkpoint checkpoints/global_fedprox_external_normal_weighted.pth
+```
+
+Calibration uses only the deterministic external validation split to adjust
+decision boundaries. It does not hardcode filenames or force every image to
+the normal class.
+
+If the external confusion matrix shows systematic errors, adapt a copy of the
+global model using the labelled external domain. The original checkpoint is
+not overwritten:
+
+```bash
+python src/adapt_external.py --data_root external_data \
+	--checkpoint checkpoints/global_fedprox_model.pth \
+	--save_name global_fedprox_external_adapted.pth
+
+python src/evaluate_external.py --data_root external_data \
+	--checkpoint checkpoints/global_fedprox_external_adapted.pth \
+	--output results/external_adapted_confusion_matrix.png
+```
+
+Compare the adapted checkpoint on both the original held-out test set and the
+external test set before deploying it. Where possible, split data by patient
+or slide rather than randomly splitting near-identical image patches.
+
+When `global_fedprox_external_adapted.pth` exists, the local dashboard uses it
+for the FedProx option. The original checkpoint remains available as
+`fedprox_original` in the backend for comparison.
 
 ---
 

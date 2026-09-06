@@ -85,6 +85,18 @@ CHECKPOINTS = {
     "fedprox": os.path.join(
         ROOT_DIR,
         "checkpoints",
+        "global_fedprox_external_normal_weighted.pth"
+        if os.path.exists(os.path.join(
+            ROOT_DIR,
+            "checkpoints",
+            "global_fedprox_external_normal_weighted.pth"
+        ))
+        else "global_fedprox_model.pth"
+    ),
+
+    "fedprox_original": os.path.join(
+        ROOT_DIR,
+        "checkpoints",
         "global_fedprox_model.pth"
     ),
 
@@ -130,6 +142,19 @@ DEVICE = torch.device(
 # ============================================================
 
 MODELS = {}
+CALIBRATION_PATH = os.path.join(
+    ROOT_DIR, "checkpoints", "external_logit_bias.json"
+)
+LOGIT_BIAS = torch.zeros(3, device=DEVICE)
+if os.path.exists(CALIBRATION_PATH):
+    with open(CALIBRATION_PATH, "r") as calibration_file:
+        calibration = json.load(calibration_file)
+    if calibration.get("classes") == CLASS_NAMES:
+        LOGIT_BIAS = torch.tensor(
+            calibration.get("bias", [0.0, 0.0, 0.0]),
+            device=DEVICE,
+            dtype=torch.float32,
+        )
 
 
 # ============================================================
@@ -484,6 +509,46 @@ def validate_microscopy_image(image):
 # PREDICTION
 # ============================================================
 
+def generate_gradcam(model, tensor, image, class_name):
+    """Create a compact tissue-attention overlay for the selected class."""
+    activations = []
+    gradients = []
+    target_layer = model.backbone.features[-1]
+
+    def save_activation(_, __, output):
+        activations.append(output)
+
+    def save_gradient(_, __, grad_output):
+        gradients.append(grad_output[0])
+
+    forward_handle = target_layer.register_forward_hook(save_activation)
+    backward_handle = target_layer.register_full_backward_hook(save_gradient)
+    try:
+        model.zero_grad(set_to_none=True)
+        logits = model(tensor)
+        class_index = CLASS_NAMES.index(class_name)
+        logits[0, class_index].backward()
+        weights = gradients[0].mean(dim=(2, 3), keepdim=True)
+        heatmap = torch.relu((weights * activations[0]).sum(dim=1))
+        heatmap = heatmap / heatmap.amax().clamp_min(1e-8)
+        heatmap = torch.nn.functional.interpolate(
+            heatmap[:, None], size=image.size[::-1], mode="bilinear",
+            align_corners=False
+        )[0, 0].detach().cpu().numpy()
+    finally:
+        forward_handle.remove()
+        backward_handle.remove()
+
+    base = np.asarray(image.convert("RGB"), dtype=np.float32)
+    red = np.zeros_like(base)
+    red[:, :, 0] = 255.0
+    alpha = (heatmap[..., None] * 0.48).astype(np.float32)
+    overlay = (base * (1.0 - alpha) + red * alpha).clip(0, 255).astype(np.uint8)
+    output = BytesIO()
+    Image.fromarray(overlay, "RGB").save(output, format="PNG")
+    encoded = base64.b64encode(output.getvalue()).decode("ascii")
+    return "data:image/png;base64," + encoded
+
 def predict(
     data_url,
     model_key
@@ -497,30 +562,27 @@ def predict(
         image
     )
 
-    tensor = (
-        VAL_TRANSFORM(image)
-        .unsqueeze(0)
-        .to(DEVICE)
-    )
+    tensor = VAL_TRANSFORM(image).unsqueeze(0).to(DEVICE)
 
     model = load_model(
         model_key
     )
 
-    with torch.no_grad():
+    # Average predictions over simple spatial views to reduce sensitivity to
+    # crop orientation and isolated acquisition artifacts.
+    views = [tensor, torch.flip(tensor, dims=[3]), torch.flip(tensor, dims=[2])]
+    logits = torch.stack([model(view)[0] for view in views]).mean(dim=0, keepdim=True)
+    logits = logits + LOGIT_BIAS
 
-        logits = model(
-            tensor
-        )
-
-        probabilities = (
-            torch.softmax(
-                logits,
-                dim=1
-            )[0]
-            .cpu()
-            .tolist()
-        )
+    probabilities = (
+        torch.softmax(
+            logits,
+            dim=1
+        )[0]
+        .detach()
+        .cpu()
+        .tolist()
+    )
 
     ranked = sorted(
         zip(
@@ -534,6 +596,13 @@ def predict(
     prediction = ranked[0][0]
 
     confidence = ranked[0][1]
+
+    explanation = generate_gradcam(
+        model,
+        tensor,
+        image,
+        ranked[0][0]
+    )
 
     return {
         "prediction": prediction,
@@ -550,9 +619,13 @@ def predict(
 
         "model": model_key,
 
+        "checkpoint": os.path.basename(CHECKPOINTS[model_key]),
+
         "device": str(
             DEVICE
-        )
+        ),
+
+        "explanation": explanation
     }
 
 

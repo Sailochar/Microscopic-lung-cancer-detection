@@ -23,3 +23,6 @@ ENV/
 .DS_Store
 Thumbs.db
 data/
+
+# External medical images stay local and must not be published.
+external_data/

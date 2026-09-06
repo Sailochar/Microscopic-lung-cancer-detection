@@ -1,0 +1,13 @@
+{
+  "classes": [
+    "lung_aca",
+    "lung_n",
+    "lung_scc"
+  ],
+  "bias": [
+    -2.0,
+    1.0,
+    -2.0
+  ],
+  "validation_macro_f1": 0.7650793650793651
+}

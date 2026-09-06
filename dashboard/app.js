@@ -1,4 +1,6 @@
-const API_BASE_URL = 'https://microscopic-lung-cancer-detection-1.onrender.com';
+const API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  ? window.location.origin
+  : 'https://microscopic-lung-cancer-detection-1.onrender.com';
 
 const authBackdrop = document.querySelector('#authBackdrop');
 const authForm = document.querySelector('#authForm');
@@ -768,7 +770,7 @@ document
           document.querySelector(
             '#analysisMessage'
           ).textContent =
-            `${data.model} checkpoint · ${data.device}`;
+            `${data.checkpoint || data.model} · ${data.device}`;
 
           showToast(
             'Report updated from the PyTorch checkpoint'
@@ -826,6 +828,8 @@ document
             }
           );
 
+          document.querySelector('#explanationImage').hidden = true;
+
           showToast(
             error.message
           );
@@ -861,6 +865,10 @@ function updateResult(data) {
     data.prediction === 'lung_n'
       ? 'No malignant pattern detected by this checkpoint.'
       : 'Model detected a malignant pattern. Review with a qualified clinician.';
+
+    const explanationImage = document.querySelector('#explanationImage');
+    explanationImage.src = data.explanation || '';
+    explanationImage.hidden = !data.explanation;
 
   [
     ['Aca', 'lung_aca'],
