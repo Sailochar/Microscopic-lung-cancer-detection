@@ -375,6 +375,18 @@ def decode_image(data_url):
 
 def validate_microscopy_image(image):
 
+    width, height = image.size
+
+    if (
+        width < 128
+        or height < 128
+        or width / height < 0.65
+        or width / height > 1.55
+    ):
+        raise ValueError(
+            "Unsupported image: upload a stained microscopic lung-tissue image."
+        )
+
     sample = np.asarray(
         image.resize(
             (128, 128)
@@ -416,6 +428,26 @@ def validate_microscopy_image(image):
         luminance.std()
     )
 
+    texture_score = float(
+        np.abs(np.diff(luminance, axis=1)).mean()
+        +
+        np.abs(np.diff(luminance, axis=0)).mean()
+    )
+
+    red = sample[:, :, 0]
+    green = sample[:, :, 1]
+    blue = sample[:, :, 2]
+
+    stained_ratio = float(
+        (
+            (red > green * 0.95)
+            &
+            (blue > green * 1.03)
+            &
+            (color_spread > 0.10)
+        ).mean()
+    )
+
     if (
         dark_ratio > 0.42
         and
@@ -438,6 +470,10 @@ def validate_microscopy_image(image):
         colored_ratio < 0.08
         or
         contrast < 0.035
+        or
+        texture_score < 0.035
+        or
+        stained_ratio < 0.10
     ):
         raise ValueError(
             "Unsupported image: upload a stained microscopic lung-tissue image."
