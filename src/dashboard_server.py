@@ -597,12 +597,17 @@ def predict(
 
     confidence = ranked[0][1]
 
-    explanation = generate_gradcam(
-        model,
-        tensor,
-        image,
-        ranked[0][0]
-    )
+    explanation = None
+    if os.environ.get(
+        "PRIVCANFED_ENABLE_GRADCAM",
+        "0"
+    ) == "1":
+        explanation = generate_gradcam(
+            model,
+            tensor,
+            image,
+            ranked[0][0]
+        )
 
     return {
         "prediction": prediction,
