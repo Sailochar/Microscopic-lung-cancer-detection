@@ -568,21 +568,27 @@ def predict(
         model_key
     )
 
-    # Average predictions over simple spatial views to reduce sensitivity to
-    # crop orientation and isolated acquisition artifacts.
-    views = [tensor, torch.flip(tensor, dims=[3]), torch.flip(tensor, dims=[2])]
-    logits = torch.stack([model(view)[0] for view in views]).mean(dim=0, keepdim=True)
-    logits = logits + LOGIT_BIAS
+    # Average predictions over simple spatial views without retaining
+    # autograd graphs; hosted inference must stay within the free instance
+    # memory limit when three views are evaluated.
+    with torch.inference_mode():
+        views = [
+            tensor,
+            torch.flip(tensor, dims=[3]),
+            torch.flip(tensor, dims=[2])
+        ]
+        logits = torch.stack(
+            [model(view)[0] for view in views]
+        ).mean(
+            dim=0,
+            keepdim=True
+        )
+        logits = logits + LOGIT_BIAS
 
-    probabilities = (
-        torch.softmax(
+        probabilities = torch.softmax(
             logits,
             dim=1
-        )[0]
-        .detach()
-        .cpu()
-        .tolist()
-    )
+        )[0].cpu().tolist()
 
     ranked = sorted(
         zip(
