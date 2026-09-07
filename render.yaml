@@ -5,3 +5,6 @@ services:
     buildCommand: pip install -r src/requirements.txt
     startCommand: python src/dashboard_server.py
     healthCheckPath: /health
+    envVars:
+      - key: PRIVCANFED_ENABLE_GRADCAM
+        value: "1"

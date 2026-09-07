@@ -606,14 +606,20 @@ def predict(
     explanation = None
     if os.environ.get(
         "PRIVCANFED_ENABLE_GRADCAM",
-        "0"
+        "1"
     ) == "1":
-        explanation = generate_gradcam(
-            model,
-            tensor,
-            image,
-            ranked[0][0]
-        )
+        try:
+            explanation = generate_gradcam(
+                model,
+                tensor,
+                image,
+                ranked[0][0]
+            )
+        except Exception as error:
+            print(
+                "[WARN] Grad-CAM unavailable:",
+                repr(error)
+            )
 
     return {
         "prediction": prediction,
