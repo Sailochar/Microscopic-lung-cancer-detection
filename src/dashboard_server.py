@@ -672,39 +672,28 @@ class DashboardHandler(
     # --------------------------------------------------------
 
     def add_cors_headers(self):
-
-        origin = self.headers.get(
-            "Origin"
+        # The API has no cookie or credential-based authentication, so it can
+        # safely serve browser requests from the Vercel production and preview
+        # deployments without an origin-specific preflight failure.
+        self.send_header(
+            "Access-Control-Allow-Origin",
+            "*"
         )
 
-        if is_allowed_origin(
-            origin
-        ):
+        self.send_header(
+            "Access-Control-Allow-Methods",
+            "GET, POST, OPTIONS"
+        )
 
-            self.send_header(
-                "Access-Control-Allow-Origin",
-                origin
-            )
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type"
+        )
 
-            self.send_header(
-                "Access-Control-Allow-Methods",
-                "GET, POST, OPTIONS"
-            )
-
-            self.send_header(
-                "Access-Control-Allow-Headers",
-                "Content-Type"
-            )
-
-            self.send_header(
-                "Access-Control-Max-Age",
-                "600"
-            )
-
-            self.send_header(
-                "Vary",
-                "Origin"
-            )
+        self.send_header(
+            "Access-Control-Max-Age",
+            "600"
+        )
 
 
     # --------------------------------------------------------
@@ -735,30 +724,12 @@ class DashboardHandler(
 
         if path not in (
             "/api/predict",
-            "/api/metrics"
+            "/api/metrics",
+            "/health"
         ):
 
             self.send_error(
                 404
-            )
-
-            return
-
-        origin = self.headers.get(
-            "Origin"
-        )
-
-        if (
-            origin
-            and
-            not is_allowed_origin(
-                origin
-            )
-        ):
-
-            self.send_error(
-                403,
-                "Origin not allowed"
             )
 
             return
@@ -794,28 +765,6 @@ class DashboardHandler(
             return
 
         try:
-
-            origin = self.headers.get(
-                "Origin"
-            )
-
-            if (
-                origin
-                and
-                not is_allowed_origin(
-                    origin
-                )
-            ):
-
-                self.send_json(
-                    403,
-                    {
-                        "error":
-                            "Origin not allowed"
-                    }
-                )
-
-                return
 
             content_length = int(
                 self.headers.get(
@@ -949,6 +898,17 @@ class DashboardHandler(
         path = urlparse(
             self.path
         ).path
+
+        if path == "/health":
+
+            self.send_json(
+                200,
+                {
+                    "status": "ok"
+                }
+            )
+
+            return
 
         if path == "/api/metrics":
 

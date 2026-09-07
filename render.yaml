@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: microscopic-lung-cancer-detection-api
+    runtime: python
+    buildCommand: pip install -r src/requirements.txt
+    startCommand: python src/dashboard_server.py
+    healthCheckPath: /health
